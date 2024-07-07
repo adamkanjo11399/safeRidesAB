@@ -1,178 +1,40 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
-import Test from './test.vue';
+
+import io from 'socket.io-client';
+
 definePageMeta({ layout: 'page' })
 useHead({ title: 'Driver dashBoard' })
 
-const zoom = ref(3)
+const zoom = ref(11)
 const markers = ref([
-  {
-    name: 'Station name',
-    location: [57.726417, 11.980239]
-  },
   {
     name: 'Station name',
     location: [57.829657, 11.996441]
   }
 ])
 
-const image = ref({
-  url: 'https://www.newsobserver.com/news/traffic/ml4bo0/picture176087666/alternates/FREE_1140/STUCK',
-  danger: false,
-})
 
-const path    = ref(markers.value.map((x) => x.location))
+// const image = ref({
+//   url: 'https://www.newsobserver.com/news/traffic/ml4bo0/picture176087666/alternates/FREE_1140/STUCK',
+//   danger: false,
+// })
+
+const image = ref<string | null>(null);
+
+// const path    = ref(markers.value.map((x) => x.location))
 const counter = ref(0)
 const goal    = ref(markers.value.length)
 
-const from_marker = ref<Float32Array>(markers.value[counter.value].location)
-const to_marker   = ref<Float32Array>(markers.value[counter.value + 1].location)
+// const from_marker = ref<Float32Array>(markers.value[counter.value].location)
+// const to_marker   = ref<Float32Array>(markers.value[counter.value + 1].location)
 
-const circle    = ref<Float32Array>(to_marker.value)
+const circle    = ref([57.829657, 11.996441])
+const driver = ref([57.726417, 11.980239])
 const radius    = 3000
-const home_view = ref<Float32Array>(from_marker.value)
-
-const driver = ref<Float32Array>(from_marker.value)
-const k = ref(
-  (from_marker.value[1] - to_marker.value[1]) /
-  (from_marker.value[0] - to_marker.value[0]),
-)
-
-const dt                       = ref(0.0005)
-const m                        = ref(from_marker.value[1] - k.value * from_marker.value[0])
-const distance_between_markers = ref(haversineDistance(from_marker.value, to_marker.value))
-const driver_leftover_distance = ref()
-const driver_driven_distance   = ref()
+const home_view = ref(driver.value)
 const show_image_state         = ref<boolean>(false)
-const show_driver_state        = ref(false)
-
-const simulation_state = ref<boolean>(false)
-const step             = ref(from_marker.value[0])
-
-function haversineDistance(coord1: Float32Array, coord2: Float32Array) {
-  const [lat1, lon1] = coord1
-  const [lat2, lon2] = coord2
-
-  const R = 6371000
-
-  const dLat = (lat2 - lat1) * (Math.PI / 180)
-  const dLon = (lon2 - lon1) * (Math.PI / 180)
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-  const distance = R * c
-
-  return distance
-}
-
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function startSimulation() {
-  show_driver_state.value = true
-
-  for (let index = 0; index < 9; index++) {
-    zoom.value += 1
-    await sleep(200)
-  }
-
-  simulation_state.value = true
-  await sleep(2000)
-
-  const timerId = setInterval(async () => {
-    if (simulation_state.value) {
-      step.value += dt.value
-      const newY = step.value * k.value + m.value
-
-      driver.value = [step.value, newY]
-
-      home_view.value = driver.value
-
-      driver_leftover_distance.value = haversineDistance(
-        driver.value,
-        to_marker.value,
-      )
-      driver_driven_distance.value = haversineDistance(
-        driver.value,
-        from_marker.value,
-      )
-
-      // ON THE STOP STATION
-      if (driver_driven_distance.value >= distance_between_markers.value) {
-        counter.value += 1
-        from_marker.value = markers.value[counter.value].location
-        to_marker.value = markers.value[counter.value + 1].location
-        k.value =
-          (from_marker.value[1] - to_marker.value[1]) /
-          (from_marker.value[0] - to_marker.value[0])
-        m.value = from_marker.value[1] - k.value * from_marker.value[0]
-        distance_between_markers.value = haversineDistance(
-          from_marker.value,
-          to_marker.value,
-        )
-
-        circle.value = to_marker.value
-
-        if (counter.value == 1) {
-          show_image_state.value = false
-          image.value.url =
-            'https://www.frantzlawgroup.com/wp-content/uploads/2023/01/railroad.webp'
-          image.value.danger = false
-        }
-
-        if (counter.value == 2) {
-          show_image_state.value = false
-          image.value.url =
-            'https://jocoreport.com/wp-content/uploads/2023/02/Preston-Street-Rail-Crossing-Selma-02-21-23-2M-scaled.jpg'
-          image.value.danger = false
-        }
-      }
-
-      // BEFORE THE STOP STATION
-      if (driver_leftover_distance.value <= radius) {
-        if (counter.value == 0) {
-          image.value.danger = true
-        }
-
-        if (counter.value == 1) {
-          image.value.danger = true
-        }
-
-        if (counter.value == 2) {
-          image.value.danger = false
-        }
-
-        // Inside the circle -> show the images taken from the camera
-        dt.value = 0.0001
-        show_image_state.value = true
-      } else {
-        dt.value = 0.0005
-        show_image_state.value = false
-      }
-
-      if (counter.value == goal.value - 1) {
-        clearInterval(timerId)
-      }
-    }
-  }, 50)
-}
-
-function stopSimulation() {
-  simulation_state.value = false
-}
-
-function continueSimulation() {
-  zoom.value = 12
-  simulation_state.value = true
-}
+const show_driver_state        = ref(true)
 
 async function makeGetRequest(url: string): Promise<any> {
     try {
@@ -216,6 +78,71 @@ async function makePostRequest(url: string, data: any): Promise<any> {
         throw error;
     }
 }
+
+// Function to get current location
+async function getCurrentLocation() {
+  if ('geolocation' in navigator) {
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      // Update driver's position
+      driver.value = [position.coords.latitude, position.coords.longitude];
+      home_view.value = driver.value; // Optionally center the map on the new location
+    } catch (error) {
+      console.error('Error getting location:', error);
+      // Handle error (e.g., user denied permission, position unavailable)
+    }
+  } else {
+    console.error('Geolocation is not supported by this browser.');
+    // Handle lack of support for geolocation
+  }
+}
+
+// Socket.io setup
+const socket = io('http://192.168.240.163:9094'); // Replace with your server IP and port
+
+// Function to connect to socket.io server
+async function connectToSocket(token: string) {
+  try {
+    await socket.connect();
+    socket.emit('join_room', { room: 'zone_1', token }); // Replace with your room and token logic
+
+    const data = {
+      "activate_camera": true
+    }
+    
+    socket.emit('send_message', { room: 'zone_1', 'message': data }); // Replace with your room and token logic
+
+    // Handle socket events
+    socket.on('message', (data) => {
+      // console.log('Received message:', message);
+      // Handle received message
+      image.value = `data:image/jpeg;base64, ${data.image}`;
+      show_image_state.value = true; // Show image when received
+      
+    });
+    
+    console.log('Connected to server');
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      // Handle disconnection
+    });
+    
+  } catch (error) {
+    console.error('Error connecting to socket server:', error);
+    // Handle connection error
+  }
+}
+
+// Fetch current location when component is mounted
+onMounted(() => {
+  connectToSocket('valid_token_1');
+  getCurrentLocation();
+});
+
 </script>
 
 <template>
@@ -282,7 +209,7 @@ async function makePostRequest(url: string, data: any): Promise<any> {
               </div>
             </div>
 
-            <div class="grid grid-cols-3">
+            <!-- <div class="grid grid-cols-3">
               <div>
                 <br />
                 <button
@@ -316,6 +243,7 @@ async function makePostRequest(url: string, data: any): Promise<any> {
                 </button>
               </div>
             </div>
+             -->
           </div>
 
           <LayoutPageSectionTitle
@@ -327,7 +255,7 @@ async function makePostRequest(url: string, data: any): Promise<any> {
             <figure v-if="show_image_state" class="max-w-lg">
               <img
                 class="h-auto max-w-full rounded-lg"
-                :src="image.url"
+                :src="image"
                 alt="image description"
               />
               <!-- <figcaption class="mt-2 text-sm text-center text-gray-500 dark:text-gray-400">Taken 45 seconds ago</figcaption> -->

@@ -60,7 +60,7 @@
         "../../node_modules/nuxt/dist/app/compat/vue-demi"
       ],
       "#icon-collections": [
-        "./icon-collections.mjs"
+        "./icon-collections"
       ],
       "#color-mode-options": [
         "./color-mode-options.mjs"
@@ -69,7 +69,7 @@
         "../../node_modules/pinia/dist/pinia"
       ],
       "#mdc-imports": [
-        "file:///home/bober/Desktop/money/safeRidesAB/frontend/app/.nuxt/mdc-imports.mjs"
+        "./mdc-imports"
       ],
       "#vue-router": [
         "./vue-router-stub"
