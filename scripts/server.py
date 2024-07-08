@@ -5,15 +5,15 @@ import traceback
 import config
 
 # Dictionary to store connected clients and their rooms
+client_id_to_sid = {}
+sid_to_client_id = {}
 connected_clients = {}
-
-# Set of authorized tokens
-AUTHORIZED_TOKENS = {"valid_token_1", "valid_token_2"}
 
 # Creates a new Async Socket IO Server
 sio = socketio.AsyncServer(cors_allowed_origins='*')
 app = web.Application()
 sio.attach(app)
+
 # Event handlers
 
 @sio.event
@@ -23,19 +23,28 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"Client disconnected: {sid}")
-    # Remove client from connected_clients dictionary upon disconnection
-    if sid in connected_clients:
-        del connected_clients[sid]
+    # Remove client from mappings upon disconnection
+    if sid in sid_to_client_id:
+        client_id = sid_to_client_id[sid]
+        del sid_to_client_id[sid]
+        if client_id in client_id_to_sid and client_id_to_sid[client_id] == sid:
+            del client_id_to_sid[client_id]
 
 @sio.event
 async def join_room(sid, data):
     room = data['room']
-    token = data['token']
+    client_id = data['id']
+
+    # Handle re-connection of the same client_id
+    if client_id in client_id_to_sid:
+        old_sid = client_id_to_sid[client_id]
+        if old_sid != sid:
+            print(f"Disconnecting old client with sid: {old_sid} for client_id: {client_id}")
+            await sio.disconnect(old_sid)
     
-    if token not in AUTHORIZED_TOKENS:
-        await sio.emit('unauthorized', room=sid)
-        return
-    
+    client_id_to_sid[client_id] = sid
+    sid_to_client_id[sid] = client_id
+
     if sid not in connected_clients:
         connected_clients[sid] = set()
     
@@ -69,7 +78,6 @@ async def send_message(sid, data):
     else:
         await sio.emit('not_in_room', room=sid)
 
-
 async def run_server():
     while True:
         try:
@@ -77,7 +85,7 @@ async def run_server():
         except Exception:
             print("Server crashed. Restarting...")
             traceback.print_exc()
-            await asyncio.sleep(5)  # Wait for a few seconds before restart
+            await asyncio.sleep(5)
 
 if __name__ == '__main__':
     asyncio.run(run_server())

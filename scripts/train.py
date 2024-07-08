@@ -32,7 +32,7 @@ async def connect_and_join():
         print('Connected to server.')
 
         # Example join room event
-        await sio.emit('join_room', {'room': 'zone_1', 'token': 'valid_token_1'})
+        await sio.emit('join_room', {'room': 'zone_1'})
         
         print('Joined room1')
 
